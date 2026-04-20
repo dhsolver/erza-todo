@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as api from './api/todos'
 import type { Todo } from './types'
+import { HeaderSummary } from './components/HeaderSummary'
+import { TaskComposer } from './components/TaskComposer'
+import { TaskList } from './components/TaskList'
 import './App.css'
 
 type Filter = 'all' | 'open' | 'done'
-
-function formatDue(value: string | null): string {
-  if (!value) return ''
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
 
 export default function App() {
   const [items, setItems] = useState<Todo[]>([])
@@ -28,6 +24,8 @@ export default function App() {
     () => Math.max(1, Math.ceil(total / pageSize)),
     [total, pageSize],
   )
+  const completedInPage = useMemo(() => items.filter((t) => t.isCompleted).length, [items])
+  const openInPage = useMemo(() => items.length - completedInPage, [items, completedInPage])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -98,10 +96,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="header">
-        <h1>Tasks</h1>
-        <p className="lede">Simple list with due dates, filters, and safe concurrent edits.</p>
-      </header>
+      <HeaderSummary total={total} open={openInPage} done={completedInPage} />
 
       {error ? (
         <div className="banner banner-error" role="alert">
@@ -109,104 +104,35 @@ export default function App() {
         </div>
       ) : null}
 
-      <form className="card compose" onSubmit={onCreate}>
-        <h2>New task</h2>
-        <label className="field">
-          <span>Title</span>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            maxLength={500}
-            placeholder="What needs doing?"
-            required
-          />
-        </label>
-        <label className="field">
-          <span>Notes (optional)</span>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            maxLength={4000}
-            rows={3}
-            placeholder="Extra context"
-          />
-        </label>
-        <label className="field">
-          <span>Due (optional)</span>
-          <input type="datetime-local" value={dueLocal} onChange={(e) => setDueLocal(e.target.value)} />
-        </label>
-        <button type="submit" className="btn primary">
-          Add task
-        </button>
-      </form>
+      <div className="layout">
+        <TaskComposer
+          title={title}
+          description={description}
+          dueLocal={dueLocal}
+          onTitleChange={setTitle}
+          onDescriptionChange={setDescription}
+          onDueLocalChange={setDueLocal}
+          onSubmit={onCreate}
+        />
 
-      <section className="card list">
-        <div className="toolbar">
-          <div className="filters" role="tablist" aria-label="Filter tasks">
-            {(['all', 'open', 'done'] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                role="tab"
-                aria-selected={filter === f}
-                className={filter === f ? 'tab active' : 'tab'}
-                onClick={() => {
-                  setFilter(f)
-                  setPage(1)
-                }}
-              >
-                {f === 'all' ? 'All' : f === 'open' ? 'Open' : 'Done'}
-              </button>
-            ))}
-          </div>
-          <button type="button" className="btn ghost" onClick={() => void load()} disabled={loading}>
-            Refresh
-          </button>
-        </div>
-
-        {loading ? <p className="muted">Loading…</p> : null}
-
-        {!loading && items.length === 0 ? (
-          <p className="muted">No tasks yet. Add one above.</p>
-        ) : null}
-
-        <ul className="todos">
-          {items.map((t) => (
-            <li key={t.id} className={t.isCompleted ? 'todo done' : 'todo'}>
-              <label className="check">
-                <input type="checkbox" checked={t.isCompleted} onChange={() => void toggleDone(t)} />
-                <span className="title">{t.title}</span>
-              </label>
-              {t.description ? <p className="desc">{t.description}</p> : null}
-              {t.dueAtUtc ? <p className="due">Due {formatDue(t.dueAtUtc)}</p> : null}
-              <div className="row-actions">
-                <button type="button" className="btn danger" onClick={() => void remove(t)}>
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {totalPages > 1 ? (
-          <footer className="pager">
-            <button type="button" className="btn ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </button>
-            <span className="muted">
-              Page {page} of {totalPages} ({total} tasks)
-            </span>
-            <button
-              type="button"
-              className="btn ghost"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </footer>
-        ) : null}
-      </section>
+        <TaskList
+          items={items}
+          loading={loading}
+          filter={filter}
+          page={page}
+          total={total}
+          totalPages={totalPages}
+          onFilterChange={(f) => {
+            setFilter(f)
+            setPage(1)
+          }}
+          onRefresh={() => void load()}
+          onToggleDone={(t) => void toggleDone(t)}
+          onDelete={(t) => void remove(t)}
+          onPreviousPage={() => setPage((p) => p - 1)}
+          onNextPage={() => setPage((p) => p + 1)}
+        />
+      </div>
     </div>
   )
 }
