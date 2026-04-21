@@ -40,6 +40,13 @@ dotnet test
 - **Unit tests** exercise `TodoService` with an EF Core in-memory database (fast, deterministic).
 - **Integration tests** use `WebApplicationFactory` with in-memory EF to validate HTTP behavior (including `409` on optimistic concurrency conflict).
 
+```bash
+cd frontend
+npm run test:run
+```
+
+- **Frontend unit tests** use Vitest + React Testing Library for component behavior (compose form events, task list actions, and empty-state rendering).
+
 ## API sketch
 
 | Method | Path | Notes |
