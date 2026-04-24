@@ -1,11 +1,15 @@
 using Ezra.Api.DTOs;
+using Ezra.Api.Models;
 using Ezra.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Ezra.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class TodosController : ControllerBase
 {
     private readonly ITodoService _todos;
@@ -21,20 +25,42 @@ public class TodosController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25,
         [FromQuery] bool? isCompleted = null,
+        [FromQuery] TodoStatus? status = null,
+        [FromQuery] TodoPriority? priority = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDir = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await _todos.ListAsync(page, pageSize, isCompleted, cancellationToken).ConfigureAwait(false);
+        var userId = GetUserId();
+        var result = await _todos.ListAsync(
+            userId,
+            page,
+            pageSize,
+            isCompleted,
+            status,
+            priority,
+            search,
+            sortBy,
+            sortDir,
+            cancellationToken).ConfigureAwait(false);
         return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(TodoResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<TodoResponse>> Get(Guid id, CancellationToken cancellationToken)
     {
-        var item = await _todos.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+        var userId = GetUserId();
+        var item = await _todos.GetByIdAsync(userId, id, cancellationToken).ConfigureAwait(false);
         if (item is null)
+        {
+            if (await _todos.ExistsAsync(id, cancellationToken).ConfigureAwait(false))
+                return Forbid();
             return NotFound();
+        }
         return Ok(item);
     }
 
@@ -48,7 +74,8 @@ public class TodosController : ControllerBase
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
 
-        var created = await _todos.CreateAsync(request, cancellationToken).ConfigureAwait(false);
+        var userId = GetUserId();
+        var created = await _todos.CreateAsync(userId, request, cancellationToken).ConfigureAwait(false);
         return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
 
@@ -56,6 +83,7 @@ public class TodosController : ControllerBase
     [ProducesResponseType(typeof(TodoResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<TodoResponse>> Update(
         Guid id,
@@ -65,9 +93,14 @@ public class TodosController : ControllerBase
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
 
-        var (notFound, conflict, updated) = await _todos.UpdateAsync(id, request, cancellationToken).ConfigureAwait(false);
+        var userId = GetUserId();
+        var (notFound, conflict, updated) = await _todos.UpdateAsync(userId, id, request, cancellationToken).ConfigureAwait(false);
         if (notFound)
+        {
+            if (await _todos.ExistsAsync(id, cancellationToken).ConfigureAwait(false))
+                return Forbid();
             return NotFound();
+        }
         if (conflict)
         {
             return Problem(
@@ -82,11 +115,25 @@ public class TodosController : ControllerBase
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var deleted = await _todos.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
+        var userId = GetUserId();
+        var deleted = await _todos.DeleteAsync(userId, id, cancellationToken).ConfigureAwait(false);
         if (!deleted)
+        {
+            if (await _todos.ExistsAsync(id, cancellationToken).ConfigureAwait(false))
+                return Forbid();
             return NotFound();
+        }
         return NoContent();
+    }
+
+    private Guid GetUserId()
+    {
+        var raw = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(raw, out var userId))
+            throw new UnauthorizedAccessException("Missing or invalid user identifier.");
+        return userId;
     }
 }

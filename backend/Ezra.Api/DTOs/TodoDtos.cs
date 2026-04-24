@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ezra.Api.Models;
 
 namespace Ezra.Api.DTOs;
 
@@ -7,6 +8,8 @@ public record TodoResponse(
     string Title,
     string? Description,
     bool IsCompleted,
+    TodoStatus Status,
+    TodoPriority Priority,
     DateTime? DueAtUtc,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc,
@@ -21,6 +24,12 @@ public class CreateTodoRequest
     [StringLength(4000)]
     public string? Description { get; set; }
 
+    [EnumDataType(typeof(TodoStatus))]
+    public TodoStatus? Status { get; set; }
+
+    [EnumDataType(typeof(TodoPriority))]
+    public TodoPriority? Priority { get; set; }
+
     public DateTime? DueAtUtc { get; set; }
 }
 
@@ -34,6 +43,12 @@ public class UpdateTodoRequest
     public string? Description { get; set; }
 
     public bool IsCompleted { get; set; }
+
+    [EnumDataType(typeof(TodoStatus))]
+    public TodoStatus? Status { get; set; }
+
+    [EnumDataType(typeof(TodoPriority))]
+    public TodoPriority? Priority { get; set; }
 
     public DateTime? DueAtUtc { get; set; }
 
