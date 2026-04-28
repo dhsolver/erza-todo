@@ -1,13 +1,13 @@
 # Frontend (React + TypeScript + Vite)
 
-Production-style task management UI for the Ezra take-home assignment.
+Task management frontend for the Ezra take-home project.
 
 ## Prerequisites
 
 - Node.js 20+
-- Backend API running at `https://localhost:7287` (or update Vite proxy target)
+- Backend running at `https://localhost:7287`
 
-## Run locally
+## Run Locally
 
 ```bash
 npm install
@@ -22,7 +22,7 @@ Open `http://localhost:5173`.
 npm run build
 ```
 
-## Unit tests
+## Tests
 
 ```bash
 npm run test:run
@@ -33,7 +33,8 @@ Test stack:
 - React Testing Library
 - JSDOM
 
-## Notes
+## API/Proxy Notes
 
 - Dev server proxies `/api` and `/health` to backend (`https://localhost:7287`) in `vite.config.ts`.
 - UI is componentized into focused pieces under `src/components/`.
+- If backend auth is enabled, unauthenticated requests to protected todo endpoints will fail with `401`.

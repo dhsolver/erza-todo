@@ -1,26 +1,38 @@
-# Ezra — Task management (take-home)
+# Ezra — Task Management Take-Home
 
-Small production-style task API (**ASP.NET Core 8**, **EF Core**, **SQLite**) and **React + TypeScript** UI. Fits the Ezra full-stack developer brief: clear API boundaries, persistence, optimistic concurrency, filters, paging, health check, and focused tests.
+Full-stack task management app built with:
+
+- Backend: ASP.NET Core 8 Web API + EF Core + SQLite
+- Frontend: React + TypeScript + Vite
+
+The current submission focuses on production-minded backend behavior: authentication, per-user data ownership, consistent DTO contracts, validation, and integration tests.
 
 ## Prerequisites
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - [Node.js 20+](https://nodejs.org/) (LTS recommended)
 
-## Run the backend
+## Run Backend
 
 ```bash
 cd backend/Ezra.Api
 dotnet run
 ```
 
-- API + Swagger: `https://localhost:7287` (HTTP `http://localhost:5287` also configured)
+- API + Swagger: `https://localhost:7287`
 - Health: `GET /health`
-- SQLite file: `ezra-todos.db` in the API project directory (created on first run via `EnsureCreated`)
+- SQLite file: `backend/Ezra.Api/ezra-todos.db` (created via `EnsureCreated` on startup)
 
-CORS allows the Vite dev origin (`http://localhost:5173`). Adjust `appsettings.json` → `Cors:AllowedOrigins` for other hosts.
+### Auth Configuration
 
-## Run the frontend
+JWT signing key is required. Either:
+
+- Set environment variable: `AUTH_SIGNING_KEY`
+- Or set `Auth:SigningKey` in config (development value exists in `appsettings.Development.json`)
+
+If missing, API startup fails intentionally.
+
+## Run Frontend
 
 ```bash
 cd frontend
@@ -28,7 +40,9 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The Vite dev server **proxies** `/api` and `/health` to `https://localhost:7287`, so you normally do not need to configure HTTPS in the browser for the UI.
+Open `http://localhost:5173`.
+
+The Vite dev server proxies `/api` and `/health` to `https://localhost:7287`.
 
 ## Tests
 
@@ -37,45 +51,51 @@ cd backend/Ezra.Api.Tests
 dotnet test
 ```
 
-- **Unit tests** exercise `TodoService` with an EF Core in-memory database (fast, deterministic).
-- **Integration tests** use `WebApplicationFactory` with in-memory EF to validate HTTP behavior (including `409` on optimistic concurrency conflict).
+- Backend unit tests validate service behavior with in-memory EF.
+- Backend integration tests cover auth flow and protected endpoint behavior.
 
 ```bash
 cd frontend
 npm run test:run
 ```
 
-- **Frontend unit tests** use Vitest + React Testing Library for component behavior (compose form events, task list actions, and empty-state rendering).
+- Frontend tests use Vitest + Testing Library.
 
-## API sketch
+## API Contract
+
+### Auth
 
 | Method | Path | Notes |
-|--------|------|--------|
-| `GET` | `/api/todos?page=&pageSize=&isCompleted=` | Paged list; `pageSize` capped at 100 |
-| `GET` | `/api/todos/{id}` | Single todo |
-| `POST` | `/api/todos` | Body: `title`, optional `description`, optional `dueAtUtc` |
-| `PUT` | `/api/todos/{id}` | Body includes `version`; mismatch → `409` |
-| `DELETE` | `/api/todos/{id}` | Idempotent from client perspective (`404` if missing) |
+|--------|------|-------|
+| `POST` | `/api/auth/register` | Registers user and returns JWT |
+| `POST` | `/api/auth/login` | Logs in and returns JWT |
 
-## Assumptions & trade-offs
+### Todos (Requires Bearer token)
 
-- **SQLite + `EnsureCreated`** keeps onboarding friction low for reviewers. For a real deployment I would switch to **migrations** (`dotnet ef migrations add`) and automated `Migrate()` at startup (or a release job), plus backup/restore playbooks.
-- **Optimistic concurrency** uses an integer `version` on each todo so two editors do not silently overwrite each other; the UI refreshes after some failures.
-- **Authn/authz** are out of scope for this exercise; a production MVP would add at least API keys or OIDC, row-level tenancy, and rate limiting at the edge.
-- **Global error handling** uses ASP.NET Core’s `ProblemDetails` pipeline; validation errors return standard `400` problem bodies.
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET` | `/api/todos` | Supports `page`, `pageSize`, `isCompleted`, `status`, `priority`, `search`, `sortBy`, `sortDir` |
+| `GET` | `/api/todos/{id}` | Returns `404` if not found, `403` if owned by another user |
+| `POST` | `/api/todos` | Create todo |
+| `PUT` | `/api/todos/{id}` | Includes optimistic concurrency via `version`; returns `409` on mismatch |
+| `DELETE` | `/api/todos/{id}` | Returns `404` or `403` appropriately |
 
-## What I would add next
+## Validation and Error Handling
 
-- Real **migrations** and a managed database for multi-instance hosting.
-- **Authentication** and per-user task lists.
-- **Observability**: structured logs, metrics, tracing, correlation IDs.
-- **E2E tests** (Playwright) against a containerized stack in CI.
-- **Input hardening** at the edge (WAF) and stricter payload size limits.
+- DTOs use data annotations for required fields, length limits, and enum validation.
+- Controllers return explicit `400`, `401`, `403`, `404`, and `409` outcomes.
+- API uses `ProblemDetails` for error payload consistency.
 
-## Repo layout
+## Notes and Trade-Offs
 
-- `backend/Ezra.Api` — Web API, EF Core, services, controllers  
-- `backend/Ezra.Api.Tests` — xUnit tests  
-- `frontend/` — Vite + React UI  
+- SQLite + `EnsureCreated` keeps local setup fast. For production, use EF migrations and managed DB operations.
+- JWT signing key is environment/config driven; do not commit real production secrets.
+- Current frontend and backend are maintained in one repository for assignment delivery.
 
-Submit by pushing this tree to GitHub and sharing the repository link.
+## Repository Layout
+
+- `backend/Ezra.Api` — API, auth, persistence, services
+- `backend/Ezra.Api.Tests` — xUnit unit/integration tests
+- `frontend` — React/Vite UI
+
+Submit by sharing this repository URL.
